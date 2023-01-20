@@ -1,4 +1,4 @@
-# Status Logger for Divera 24/7
+# Alarm Checker for Divera 24/7
 This small project has been build to detect if an alarm is currently active and if so it will save how many users responded to the alarm.
 
 ## Functionality
