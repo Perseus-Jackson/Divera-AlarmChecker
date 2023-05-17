@@ -22,7 +22,8 @@ def write_json(data):
     logging.debug("Writing data to file")
 
     json_data = {"id": data["id"], "title": data["title"], "text": data["text"], "address": data["address"],
-                 "vehicle": data["vehicle"], "answeredcount": data["ucr_answeredcount"]}
+                 "vehicle": data["vehicle"], "answered": data["ucr_answered"],
+                 "answeredcount": data["ucr_answeredcount"]}
 
     logging.debug("JSON Data: " + str(json_data))
 
@@ -33,10 +34,13 @@ def write_json(data):
 
 
 def get_data():
-    response = requests.get(config["url"] + config["accesskey"])
-    data = json.loads(response.text)
+    try:
+        response = requests.get(config["url"] + config["accesskey"])
+        data = json.loads(response.text)
 
-    write_json(data["data"])
+        write_json(data["data"])
+    except ConnectionError as e:
+        raise e
 
 
 def check_api(tries=None):
@@ -46,29 +50,32 @@ def check_api(tries=None):
     else:
         logging.debug("Calling api at try " + str(tries))
 
-    response = requests.get(config["url"] + config["accesskey"])
+    try:
+        response = requests.get(config["url"] + config["accesskey"])
 
-    if response.status_code == 200:
-        #logging.debug("Code: " + str(response.status_code))
-       # logging.debug("Call successfull")
+        if response.status_code == 200:
+            #logging.debug("Code: " + str(response.status_code))
+           # logging.debug("Call successfull")
 
-        data = json.loads(response.text)
-        if data["success"]:
-            logging.debug("Alarm detected, starting timer")
-            global alarm_time
-            alarm_time = datetime.datetime.now()
-            return 1
+            data = json.loads(response.text)
+            if data["success"] and (data["data"]["title"] != "Test Alarmierung" or data["data"]["title"] != "Test Alarmierung"):
+                logging.debug("Alarm detected, starting timer")
+                global alarm_time
+                alarm_time = datetime.datetime.now()
+                return 1
+            else:
+                logging.debug("No Alarm detected")
+                return 0
+        elif tries <= 5:
+            #logging.debug("Code: " + str(response.status_code))
+            #logging.debug("ACall failed, retry")
+            check_api(tries+1)
         else:
-            logging.debug("No Alarm detected")
+            #logging.debug("Code: " + str(response.status_code))
+            logging.debug("Call failed 5th times, aborting")
             return 0
-    elif tries <= 5:
-        #logging.debug("Code: " + str(response.status_code))
-        #logging.debug("ACall failed, retry")
-        check_api(tries+1)
-    else:
-        #logging.debug("Code: " + str(response.status_code))
-        logging.debug("Call failed 5th times, aborting")
-        return 0
+    except ConnectionError as e:
+        raise e
 
 
 
@@ -79,13 +86,18 @@ def main():
     global config
     config = load_conf("config.json")
     while 1:
-        alarm_exists = check_api()
-        if alarm_exists:
-            time.sleep(600)
-            get_data()
-            time.sleep(7200)
-        else:
+        try:
+            alarm_exists = check_api()
+            if alarm_exists:
+                time.sleep(600)
+                get_data()
+                time.sleep(7200)
+            else:
+                time.sleep(60)
+        except Exception as e:
+            logging.debug("An Error occured: " + str(e))
             time.sleep(60)
+
 
 if __name__ == "__main__":
     main()
